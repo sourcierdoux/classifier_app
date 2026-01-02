@@ -1,0 +1,27 @@
+{
+  "app": {
+    "name": "LLM Classifier Testing Framework",
+    "version": "1.0.0"
+  },
+  "backend": {
+    "host": "localhost",
+    "port": 8000,
+    "cors_origins": ["http://localhost:5173", "http://localhost:3000"]
+  },
+  "frontend": {
+    "api_base_url": "http://localhost:8000"
+  },
+  "classifier": {
+    "default_mode": "both",
+    "default_use_filter": true,
+    "default_async_mode": true,
+    "default_max_concurrency": 20,
+    "max_concurrency_limit": 50,
+    "allowed_file_types": [".csv", ".xlsx"],
+    "output_directory": "./results"
+  },
+  "storage": {
+    "test_history_file": "./data/test_history.json",
+    "max_history_items": 100
+  }
+}

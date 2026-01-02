@@ -1,0 +1,11 @@
+# Data
+data/
+results/
+
+# Environment
+.env
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
