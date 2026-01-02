@@ -3,7 +3,8 @@
     "allow": [
       "Bash(cd:*)",
       "Bash(npm install:*)",
-      "Bash(cd /Users/guillaumelecronier/Documents\\\\ -\\\\ Local/classifier-app/frontend && npx tailwindcss init -p:*)"
+      "Bash(cd /Users/guillaumelecronier/Documents\\\\ -\\\\ Local/classifier-app/frontend && npx tailwindcss init -p:*)",
+      "Bash(chmod:*)"
     ]
   }
 }

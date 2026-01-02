@@ -1,6 +1,19 @@
-# Data
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Data and results
 data/
 results/
+*.csv
+*.xlsx
 
 # Environment
 .env
@@ -9,3 +22,8 @@ results/
 # OS
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
+
+# Streamlit
+.streamlit/secrets.toml
