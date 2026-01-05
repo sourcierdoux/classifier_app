@@ -13,7 +13,8 @@ def run_classifier(
     mode: Literal['sr', 'qf', 'both'] = 'both',
     use_filter: bool = True,
     async_mode: bool = True,
-    max_concurrency: int = 20
+    max_concurrency: int = 20,
+    progress_callback: callable = None
 ) -> dict:
     """
     TODO: Replace this function with your actual classifier implementation
@@ -27,6 +28,7 @@ def run_classifier(
         use_filter: Whether to use aggressive filters
         async_mode: Whether to run parallel predictions
         max_concurrency: Max concurrent predictions
+        progress_callback: Optional callback function(current, total, message) for progress updates
 
     Returns:
         dict with keys:
@@ -64,8 +66,16 @@ def run_classifier(
         total_filtered = 0
         total_sr = 0
         total_archive = 0
+        total_files = len(files)
 
-        for file in files:
+        for idx, file in enumerate(files):
+            # Report progress
+            if progress_callback:
+                progress_callback(
+                    current=idx + 1,
+                    total=total_files,
+                    message=f"Processing {file.name}..."
+                )
             # 1. Load ORIGINAL file
             if file.suffix == '.csv':
                 df_original = pd.read_csv(file)
@@ -131,26 +141,36 @@ def run_classifier(
     """
 
     # TODO: Remove this simulation code and replace with your implementation
-    # This is just a placeholder
-    time.sleep(2)
+    # This is just a placeholder that simulates progress
 
-    # Simulate multiple files
-    file_stats = [
-        {
-            'source_file': 'desk_A.csv',
-            'original_total': 1000,
-            'original_sr_count': 200,
-            'original_archive_count': 800,
-            'filtered_total': 400,
-        },
-        {
-            'source_file': 'desk_B.csv',
-            'original_total': 1500,
-            'original_sr_count': 300,
-            'original_archive_count': 1200,
-            'filtered_total': 600,
-        }
+    # Simulate multiple files with progress
+    file_stats = []
+    simulated_files = [
+        {'name': 'desk_A.csv', 'original_total': 1000, 'original_sr_count': 200, 'original_archive_count': 800, 'filtered_total': 400},
+        {'name': 'desk_B.csv', 'original_total': 1500, 'original_sr_count': 300, 'original_archive_count': 1200, 'filtered_total': 600},
     ]
+
+    total_files = len(simulated_files)
+
+    for idx, sim_file in enumerate(simulated_files):
+        # Report progress
+        if progress_callback:
+            progress_callback(
+                current=idx + 1,
+                total=total_files,
+                message=f"Processing {sim_file['name']}..."
+            )
+
+        # Simulate processing time per file
+        time.sleep(1)
+
+        file_stats.append({
+            'source_file': sim_file['name'],
+            'original_total': sim_file['original_total'],
+            'original_sr_count': sim_file['original_sr_count'],
+            'original_archive_count': sim_file['original_archive_count'],
+            'filtered_total': sim_file['filtered_total'],
+        })
 
     return {
         'total_emails': 2500,  # Original total

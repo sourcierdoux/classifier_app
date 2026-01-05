@@ -142,33 +142,46 @@ if submit_button:
 
         storage.save_test(test)
 
-        # Show progress
-        with st.spinner("🔄 Running classifier..."):
-            try:
-                # Update status to running
-                test.status = 'running'
-                test.started_at = datetime.now().isoformat()
-                storage.save_test(test)
+        # Update status to running
+        test.status = 'running'
+        test.started_at = datetime.now().isoformat()
+        storage.save_test(test)
 
-                # Run classifier
-                results = run_classifier(
-                    source_path=source_path,
-                    out_path=out_path,
-                    mode=mode,
-                    use_filter=use_filter,
-                    async_mode=async_mode,
-                    max_concurrency=max_concurrency
-                )
+        # Create progress tracking UI
+        progress_bar = st.progress(0, text="Starting classification...")
+        status_text = st.empty()
 
-                # Update test with basic results
-                test.total_emails = results.get('total_emails', 0)
-                test.processed_emails = results.get('processed_emails', 0)
-                test.sr_positive = results.get('sr_positive')
-                test.sr_negative = results.get('sr_negative')
-                test.category_breakdown = results.get('category_breakdown')
+        def update_progress(current: int, total: int, message: str):
+            """Callback to update progress bar and status"""
+            progress = current / total
+            progress_bar.progress(progress, text=f"🔄 [{current}/{total}] {message}")
+            status_text.info(f"Processing file {current} of {total}: {message}")
 
-                # Run detailed analysis on output files
-                st.info("📊 Running detailed analysis on prediction results...")
+        try:
+            # Run classifier with progress callback
+            results = run_classifier(
+                source_path=source_path,
+                out_path=out_path,
+                mode=mode,
+                use_filter=use_filter,
+                async_mode=async_mode,
+                max_concurrency=max_concurrency,
+                progress_callback=update_progress
+            )
+
+            # Clear progress indicators
+            progress_bar.empty()
+            status_text.empty()
+
+            # Update test with basic results
+            test.total_emails = results.get('total_emails', 0)
+            test.processed_emails = results.get('processed_emails', 0)
+            test.sr_positive = results.get('sr_positive')
+            test.sr_negative = results.get('sr_negative')
+            test.category_breakdown = results.get('category_breakdown')
+
+            # Run detailed analysis on output files
+            with st.spinner("📊 Running detailed analysis on prediction results..."):
                 try:
                     # Get pre-filter stats from run_classifier return
                     file_stats = results.get('file_stats')
@@ -181,27 +194,31 @@ if submit_button:
                     st.warning(f"⚠️ Analysis completed with warnings: {str(analysis_error)}")
                     test.file_analyses = None
 
-                # Mark as completed
-                test.status = 'completed'
-                test.completed_at = datetime.now().isoformat()
-                storage.save_test(test)
+            # Mark as completed
+            test.status = 'completed'
+            test.completed_at = datetime.now().isoformat()
+            storage.save_test(test)
 
-                st.success("✅ Test completed successfully!")
-                st.balloons()
+            st.success("✅ Test completed successfully!")
+            st.balloons()
 
-                # Redirect to results
-                if st.button("📊 View Results"):
-                    st.session_state['selected_test_id'] = test_id
-                    st.switch_page("pages/3_📊_Test_Results.py")
+            # Redirect to results
+            if st.button("📊 View Results"):
+                st.session_state['selected_test_id'] = test_id
+                st.switch_page("pages/3_📊_Test_Results.py")
 
-            except Exception as e:
-                # Update status to failed
-                test.status = 'failed'
-                test.completed_at = datetime.now().isoformat()
-                test.error_message = str(e)
-                storage.save_test(test)
+        except Exception as e:
+            # Clear progress indicators
+            progress_bar.empty()
+            status_text.empty()
 
-                st.error(f"❌ Test failed: {str(e)}")
+            # Update status to failed
+            test.status = 'failed'
+            test.completed_at = datetime.now().isoformat()
+            test.error_message = str(e)
+            storage.save_test(test)
+
+            st.error(f"❌ Test failed: {str(e)}")
 
 if cancel_button:
     st.switch_page("Home.py")

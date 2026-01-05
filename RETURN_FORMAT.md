@@ -35,12 +35,42 @@ The UI will show:
 - **After Filtering**: 400 emails (-600 removed), 150 SRs, 250 Archives
 - **Predictions**: Based on the 400 filtered emails
 
+## Progress Tracking (Optional but Recommended)
+
+To show real-time progress in the UI, use the `progress_callback` parameter:
+
+```python
+def run_classifier(..., progress_callback=None):
+    files = get_files(source_path)
+    total_files = len(files)
+
+    for idx, file in enumerate(files):
+        # Report progress to UI
+        if progress_callback:
+            progress_callback(
+                current=idx + 1,
+                total=total_files,
+                message=f"Processing {file.name}..."
+            )
+
+        # Your processing logic...
+```
+
+The callback receives:
+- `current`: Current file number (1-based)
+- `total`: Total number of files
+- `message`: Status message to display
+
 ## Step-by-Step Implementation
 
 ### Step 1: Load Original File
 
 ```python
-for file in files:
+for idx, file in enumerate(files):
+    # Report progress (optional)
+    if progress_callback:
+        progress_callback(idx + 1, len(files), f"Processing {file.name}...")
+
     # Load original (before any filtering)
     if file.suffix == '.csv':
         df_original = pd.read_csv(file)
