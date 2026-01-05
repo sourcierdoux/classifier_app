@@ -3,14 +3,6 @@
     "name": "LLM Classifier Testing Framework",
     "version": "1.0.0"
   },
-  "backend": {
-    "host": "localhost",
-    "port": 8000,
-    "cors_origins": ["http://localhost:5173", "http://localhost:3000"]
-  },
-  "frontend": {
-    "api_base_url": "http://localhost:8000"
-  },
   "classifier": {
     "default_mode": "both",
     "default_use_filter": true,
@@ -19,6 +11,18 @@
     "max_concurrency_limit": 50,
     "allowed_file_types": [".csv", ".xlsx"],
     "output_directory": "./results"
+  },
+  "analysis": {
+    "sr_id_column": "sr_id",
+    "ground_truth_quickfill_column": "sr_quick_fulfillment",
+    "predicted_opening_column": "predicted_opening",
+    "predicted_quickfill_column": "predicted_quickfill",
+    "sr_labels": {
+      "creation": "SR",
+      "archive": "Archive",
+      "review": "Review"
+    },
+    "special_quickfills": ["AFFIRMATION / TRADE RECOGNITION"]
   },
   "storage": {
     "test_history_file": "./data/test_history.json",

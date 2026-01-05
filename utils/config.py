@@ -22,6 +22,9 @@ class Config:
     ALLOWED_FILE_TYPES = config_data["classifier"]["allowed_file_types"]
     OUTPUT_DIRECTORY = config_data["classifier"]["output_directory"]
 
+    # Analysis settings
+    analysis = config_data["analysis"]
+
     # Storage settings
     TEST_HISTORY_FILE = config_data["storage"]["test_history_file"]
     MAX_HISTORY_ITEMS = config_data["storage"]["max_history_items"]

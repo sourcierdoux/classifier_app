@@ -5,6 +5,7 @@ from utils.config import config
 from utils.storage import storage
 from utils.models import TestResult
 from utils.classifier import run_classifier
+from utils.analysis import analyzer
 
 st.set_page_config(page_title="New Test", page_icon="📝", layout="wide")
 
@@ -159,15 +160,26 @@ if submit_button:
                     max_concurrency=max_concurrency
                 )
 
-                # Update test with results
-                test.status = 'completed'
-                test.completed_at = datetime.now().isoformat()
+                # Update test with basic results
                 test.total_emails = results.get('total_emails', 0)
                 test.processed_emails = results.get('processed_emails', 0)
                 test.sr_positive = results.get('sr_positive')
                 test.sr_negative = results.get('sr_negative')
                 test.category_breakdown = results.get('category_breakdown')
 
+                # Run detailed analysis on output files
+                st.info("📊 Running detailed analysis on prediction results...")
+                try:
+                    file_analyses = analyzer.analyze_test_results(out_path)
+                    test.file_analyses = file_analyses
+                    st.success(f"✅ Analyzed {len(file_analyses)} file(s)")
+                except Exception as analysis_error:
+                    st.warning(f"⚠️ Analysis completed with warnings: {str(analysis_error)}")
+                    test.file_analyses = None
+
+                # Mark as completed
+                test.status = 'completed'
+                test.completed_at = datetime.now().isoformat()
                 storage.save_test(test)
 
                 st.success("✅ Test completed successfully!")

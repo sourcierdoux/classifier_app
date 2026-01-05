@@ -1,5 +1,5 @@
-from dataclasses import dataclass, asdict
-from typing import Optional, Literal
+from dataclasses import dataclass, asdict, field
+from typing import Optional, Literal, List
 from datetime import datetime
 from enum import Enum
 
@@ -26,6 +26,7 @@ class TestResult:
     sr_positive: Optional[int] = None
     sr_negative: Optional[int] = None
     category_breakdown: Optional[dict] = None
+    file_analyses: Optional[List[dict]] = None  # Per-file detailed analysis
 
     def to_dict(self):
         return asdict(self)

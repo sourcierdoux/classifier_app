@@ -1,6 +1,7 @@
 import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
+import pandas as pd
 from datetime import datetime
 from utils.storage import storage
 
@@ -23,22 +24,10 @@ st.markdown("""
         display: inline-block;
         margin-bottom: 1rem;
     }
-    .status-completed {
-        background-color: #d1fae5;
-        color: #065f46;
-    }
-    .status-running {
-        background-color: #dbeafe;
-        color: #1e40af;
-    }
-    .status-failed {
-        background-color: #fee2e2;
-        color: #991b1b;
-    }
-    .status-pending {
-        background-color: #fef3c7;
-        color: #92400e;
-    }
+    .status-completed { background-color: #d1fae5; color: #065f46; }
+    .status-running { background-color: #dbeafe; color: #1e40af; }
+    .status-failed { background-color: #fee2e2; color: #991b1b; }
+    .status-pending { background-color: #fef3c7; color: #92400e; }
     .section-header {
         font-size: 1.5rem;
         font-weight: 600;
@@ -46,10 +35,20 @@ st.markdown("""
         margin-top: 2rem;
         margin-bottom: 1rem;
     }
+    .file-header {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #3b82f6;
+        margin-top: 1.5rem;
+        margin-bottom: 0.5rem;
+        padding: 0.5rem;
+        background: #eff6ff;
+        border-left: 4px solid #3b82f6;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Get test ID from session state or query params
+# Get test ID from session state
 test_id = st.session_state.get('selected_test_id')
 
 if not test_id:
@@ -101,8 +100,7 @@ with col3:
         st.metric("Duration", "N/A")
 
 with col4:
-    st.metric("Async Mode", "✓" if test.async_mode else "✗")
-    st.caption(f"Concurrency: {test.max_concurrency}")
+    st.metric("Total Emails", test.total_emails or 0)
 
 # Paths
 with st.expander("📁 File Paths"):
@@ -120,109 +118,30 @@ with col2:
 with col3:
     st.metric("Max Concurrency", test.max_concurrency)
 
-# Results (only if completed)
-if test.status == 'completed':
-    st.markdown('<div class="section-header">📈 Results</div>', unsafe_allow_html=True)
+# Per-File Detailed Analysis
+if test.status == 'completed' and test.file_analyses:
+    st.markdown('<div class="section-header">📈 Detailed Analysis (Per File)</div>', unsafe_allow_html=True)
 
-    # Overview metrics
-    col1, col2 = st.columns(2)
+    # Summary stats across all files
+    total_files = len(test.file_analyses)
+    successful_analyses = sum(1 for f in test.file_analyses if f.get('status') == 'success')
 
-    with col1:
-        st.metric(
-            "Total Emails",
-            test.total_emails or 0,
-            help="Total number of emails in the dataset"
-        )
+    st.info(f"📁 **{successful_analyses}/{total_files}** files analyzed successfully")
 
-    with col2:
-        st.metric(
-            "Processed Emails",
-            test.processed_emails or 0,
-            help="Number of emails successfully processed"
-        )
+    # Tabs for each file
+    if successful_analyses > 0:
+        file_tabs = st.tabs([f"📄 {analysis['file_name']}" for analysis in test.file_analyses if analysis.get('status') == 'success'])
 
-    # SR Results
-    if test.mode in ['sr', 'both'] and test.sr_positive is not None:
-        st.markdown("### Service Request Classification")
+        for idx, analysis in enumerate([a for a in test.file_analyses if a.get('status') == 'success']):
+            with file_tabs[idx]:
+                display_file_analysis(analysis, test.mode)
 
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.metric(
-                "SR Positive",
-                test.sr_positive,
-                delta=f"{(test.sr_positive / test.total_emails * 100):.1f}%" if test.total_emails else None,
-                delta_color="off"
-            )
-
-        with col2:
-            st.metric(
-                "SR Negative",
-                test.sr_negative,
-                delta=f"{(test.sr_negative / test.total_emails * 100):.1f}%" if test.total_emails else None,
-                delta_color="off"
-            )
-
-        with col3:
-            # SR Pie Chart
-            if test.total_emails and test.total_emails > 0:
-                fig = go.Figure(data=[go.Pie(
-                    labels=['SR Positive', 'SR Negative'],
-                    values=[test.sr_positive, test.sr_negative],
-                    marker=dict(colors=['#10b981', '#ef4444']),
-                    hole=0.4
-                )])
-                fig.update_layout(
-                    title="SR Distribution",
-                    height=300,
-                    margin=dict(t=50, b=0, l=0, r=0)
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-    # Category Results
-    if test.mode in ['qf', 'both'] and test.category_breakdown:
-        st.markdown("### Category Breakdown")
-
-        # Category bar chart
-        categories = list(test.category_breakdown.keys())
-        counts = list(test.category_breakdown.values())
-
-        fig = go.Figure(data=[
-            go.Bar(
-                x=categories,
-                y=counts,
-                marker_color='#3b82f6',
-                text=counts,
-                textposition='auto',
-            )
-        ])
-        fig.update_layout(
-            title="Category Distribution",
-            xaxis_title="Category",
-            yaxis_title="Count",
-            height=400,
-            showlegend=False
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Category table
-        col1, col2 = st.columns([2, 1])
-
-        with col1:
-            st.markdown("#### Detailed Breakdown")
-            for category, count in test.category_breakdown.items():
-                percentage = (count / test.total_emails * 100) if test.total_emails else 0
-                st.progress(percentage / 100, text=f"{category}: {count} ({percentage:.1f}%)")
-
-        with col2:
-            st.markdown("#### Top Categories")
-            sorted_categories = sorted(
-                test.category_breakdown.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )
-            for i, (category, count) in enumerate(sorted_categories[:5], 1):
-                st.metric(f"#{i} {category}", count)
+    # Show failed analyses
+    failed_analyses = [f for f in test.file_analyses if f.get('status') == 'failed']
+    if failed_analyses:
+        with st.expander("⚠️ Failed Analyses", expanded=False):
+            for failed in failed_analyses:
+                st.error(f"**{failed['file_name']}**: {failed.get('error', 'Unknown error')}")
 
 # Error message
 if test.status == 'failed' and test.error_message:
@@ -248,6 +167,200 @@ with col3:
         st.session_state.pop('selected_test_id', None)
         st.switch_page("pages/2_📚_Test_History.py")
 
+
+def display_file_analysis(analysis: dict, mode: str):
+    """Display detailed analysis for a single file"""
+
+    basic_stats = analysis.get('basic_stats', {})
+    sr_analysis = analysis.get('sr_analysis', {})
+    qf_analysis = analysis.get('quickfill_analysis', {})
+
+    # Basic Statistics
+    st.markdown("#### 📊 Basic Statistics")
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric("Total Emails", basic_stats.get('total_emails', 0))
+    with col2:
+        st.metric("GT SR Creations", basic_stats.get('gt_sr_creation_count', 0))
+    with col3:
+        st.metric("GT Archives", basic_stats.get('gt_sr_archive_count', 0))
+
+    # SR Opening Analysis
+    if mode in ['sr', 'both']:
+        st.markdown("#### ✅ SR Opening Analysis")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric(
+                "Predicted SR",
+                sr_analysis.get('predicted_sr_count', 0),
+                help="Number of emails predicted as SR Creation"
+            )
+        with col2:
+            st.metric(
+                "Predicted Archive",
+                sr_analysis.get('predicted_archive_count', 0),
+                help="Number of emails predicted as Archive"
+            )
+        with col3:
+            st.metric(
+                "Predicted Review",
+                sr_analysis.get('predicted_review_count', 0),
+                help="Number of emails predicted as Review (unsure)"
+            )
+
+        # Precision Metrics
+        st.markdown("##### 🎯 Precision Metrics")
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            sr_prec = sr_analysis.get('sr_creation_precision')
+            if sr_prec is not None:
+                st.metric(
+                    "SR Creation Precision",
+                    f"{sr_prec:.2%}",
+                    help="Of all predicted SR, how many are actually SR?"
+                )
+            else:
+                st.metric("SR Creation Precision", "N/A")
+
+        with col2:
+            arch_prec = sr_analysis.get('archive_precision')
+            if arch_prec is not None:
+                st.metric(
+                    "Archive Precision",
+                    f"{arch_prec:.2%}",
+                    help="Of all predicted Archive, how many are actually Archive?"
+                )
+            else:
+                st.metric("Archive Precision", "N/A")
+
+        with col3:
+            accuracy = sr_analysis.get('overall_accuracy')
+            if accuracy is not None:
+                st.metric(
+                    "Overall Accuracy",
+                    f"{accuracy:.2%}",
+                    help="Accuracy excluding Review predictions"
+                )
+            else:
+                st.metric("Overall Accuracy", "N/A")
+
+        # SR Distribution Pie Chart
+        pred_sr = sr_analysis.get('predicted_sr_count', 0)
+        pred_arch = sr_analysis.get('predicted_archive_count', 0)
+        pred_rev = sr_analysis.get('predicted_review_count', 0)
+
+        if pred_sr + pred_arch + pred_rev > 0:
+            fig = go.Figure(data=[go.Pie(
+                labels=['SR Creation', 'Archive', 'Review'],
+                values=[pred_sr, pred_arch, pred_rev],
+                marker=dict(colors=['#10b981', '#ef4444', '#f59e0b']),
+                hole=0.4
+            )])
+            fig.update_layout(
+                title="SR Prediction Distribution",
+                height=350,
+                margin=dict(t=50, b=0, l=0, r=0)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Quickfill Analysis
+    if mode in ['qf', 'both']:
+        st.markdown("#### 🏷️ Quickfill Analysis")
+
+        total_qf = qf_analysis.get('total_quickfills_predicted', 0)
+        qf_accuracy = qf_analysis.get('accuracy')
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Total Quickfills Predicted", total_qf)
+        with col2:
+            if qf_accuracy is not None:
+                st.metric("Quickfill Accuracy", f"{qf_accuracy:.2%}")
+            else:
+                st.metric("Quickfill Accuracy", "N/A")
+
+        # Special Quickfills
+        special_counts = qf_analysis.get('special_quickfill_counts', {})
+        if special_counts:
+            st.markdown("##### ⭐ Special Quickfills")
+            cols = st.columns(len(special_counts))
+            for idx, (qf_name, count) in enumerate(special_counts.items()):
+                with cols[idx]:
+                    st.metric(qf_name, count)
+
+        # Quickfill Distribution
+        distribution = qf_analysis.get('distribution', {})
+        if distribution:
+            st.markdown("##### 📊 Quickfill Distribution")
+
+            # Bar chart
+            sorted_dist = dict(sorted(distribution.items(), key=lambda x: x[1], reverse=True))
+
+            fig = go.Figure(data=[
+                go.Bar(
+                    x=list(sorted_dist.keys()),
+                    y=list(sorted_dist.values()),
+                    marker_color='#3b82f6',
+                    text=list(sorted_dist.values()),
+                    textposition='auto',
+                )
+            ])
+            fig.update_layout(
+                title="Predicted Quickfill Counts",
+                xaxis_title="Quickfill Category",
+                yaxis_title="Count",
+                height=400,
+                showlegend=False,
+                xaxis_tickangle=-45
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        # Confusion Matrix
+        confusion_matrix = qf_analysis.get('confusion_matrix')
+        if confusion_matrix:
+            st.markdown("##### 🔀 Confusion Matrix (Ground Truth vs Predicted)")
+
+            labels = confusion_matrix.get('labels', [])
+            matrix_data = confusion_matrix.get('matrix', {})
+
+            # Create matrix for heatmap
+            matrix_values = []
+            for true_label in labels:
+                row = []
+                for pred_label in labels:
+                    row.append(matrix_data.get(true_label, {}).get(pred_label, 0))
+                matrix_values.append(row)
+
+            # Heatmap
+            fig = go.Figure(data=go.Heatmap(
+                z=matrix_values,
+                x=[f"Pred: {l}" for l in labels],
+                y=[f"True: {l}" for l in labels],
+                colorscale='Blues',
+                text=matrix_values,
+                texttemplate='%{text}',
+                textfont={"size": 10},
+                colorbar=dict(title="Count")
+            ))
+            fig.update_layout(
+                title="Confusion Matrix",
+                xaxis_title="Predicted Quickfill",
+                yaxis_title="Ground Truth Quickfill",
+                height=max(400, len(labels) * 40),
+                xaxis_tickangle=-45
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Show matrix as table
+            with st.expander("📋 View as Table"):
+                df_matrix = pd.DataFrame(matrix_values, index=labels, columns=labels)
+                st.dataframe(df_matrix, use_container_width=True)
+
+
 # Sidebar
 with st.sidebar:
     st.markdown("### 📋 Test Summary")
@@ -265,12 +378,12 @@ with st.sidebar:
     if test.status == 'completed':
         st.success("✅ Test completed successfully")
 
-        st.markdown("### 📊 Quick Stats")
-        st.metric("Emails", test.total_emails or 0)
+        if test.file_analyses:
+            st.markdown("### 📊 Files Analyzed")
+            st.metric("Total Files", len(test.file_analyses))
 
-        if test.sr_positive is not None:
-            success_rate = (test.sr_positive / test.total_emails * 100) if test.total_emails else 0
-            st.metric("SR Success Rate", f"{success_rate:.1f}%")
+            successful = sum(1 for f in test.file_analyses if f.get('status') == 'success')
+            st.metric("Successful", successful)
 
     elif test.status == 'running':
         st.info("⏳ Processing...")
