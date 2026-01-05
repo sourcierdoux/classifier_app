@@ -170,7 +170,11 @@ if submit_button:
                 # Run detailed analysis on output files
                 st.info("📊 Running detailed analysis on prediction results...")
                 try:
-                    file_analyses = analyzer.analyze_test_results(out_path)
+                    # Get pre-filter stats from run_classifier return
+                    file_stats = results.get('file_stats')
+
+                    # Analyze with pre-filter stats
+                    file_analyses = analyzer.analyze_test_results(out_path, file_stats=file_stats)
                     test.file_analyses = file_analyses
                     st.success(f"✅ Analyzed {len(file_analyses)} file(s)")
                 except Exception as analysis_error:

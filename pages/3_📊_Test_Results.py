@@ -174,17 +174,71 @@ def display_file_analysis(analysis: dict, mode: str):
     basic_stats = analysis.get('basic_stats', {})
     sr_analysis = analysis.get('sr_analysis', {})
     qf_analysis = analysis.get('quickfill_analysis', {})
+    original_stats = analysis.get('original_stats', {})
+    filtered_total = analysis.get('filtered_total')
 
     # Basic Statistics
     st.markdown("#### 📊 Basic Statistics")
-    col1, col2, col3 = st.columns(3)
 
-    with col1:
-        st.metric("Total Emails", basic_stats.get('total_emails', 0))
-    with col2:
-        st.metric("GT SR Creations", basic_stats.get('gt_sr_creation_count', 0))
-    with col3:
-        st.metric("GT Archives", basic_stats.get('gt_sr_archive_count', 0))
+    # Show original stats if available
+    if original_stats and original_stats.get('total_emails'):
+        st.markdown("##### 📄 Original File (Before Filtering)")
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric(
+                "Total Emails",
+                original_stats.get('total_emails', 0),
+                help="Total emails in original file before filtering"
+            )
+        with col2:
+            st.metric(
+                "SR Creations (GT)",
+                original_stats.get('sr_count', 0),
+                help="Ground truth SR creations in original file"
+            )
+        with col3:
+            st.metric(
+                "Archives (GT)",
+                original_stats.get('archive_count', 0),
+                help="Ground truth archives in original file"
+            )
+
+        st.markdown("##### 🔍 After Filtering")
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            filtered = filtered_total if filtered_total is not None else basic_stats.get('total_emails', 0)
+            removed = original_stats.get('total_emails', 0) - filtered
+            st.metric(
+                "Filtered Emails",
+                filtered,
+                delta=f"-{removed} removed",
+                delta_color="off",
+                help="Emails remaining after filtering"
+            )
+        with col2:
+            st.metric(
+                "GT SR Creations",
+                basic_stats.get('gt_sr_creation_count', 0),
+                help="Ground truth SR creations in filtered data"
+            )
+        with col3:
+            st.metric(
+                "GT Archives",
+                basic_stats.get('gt_sr_archive_count', 0),
+                help="Ground truth archives in filtered data"
+            )
+    else:
+        # No original stats, just show filtered stats
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric("Total Emails", basic_stats.get('total_emails', 0))
+        with col2:
+            st.metric("GT SR Creations", basic_stats.get('gt_sr_creation_count', 0))
+        with col3:
+            st.metric("GT Archives", basic_stats.get('gt_sr_archive_count', 0))
 
     # SR Opening Analysis
     if mode in ['sr', 'both']:

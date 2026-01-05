@@ -2,8 +2,9 @@
 Classifier module - integrate your run_classifier function here
 """
 import time
-from datetime import datetime
+from pathlib import Path
 from typing import Literal
+import pandas as pd
 
 
 def run_classifier(
@@ -17,13 +18,7 @@ def run_classifier(
     """
     TODO: Replace this function with your actual classifier implementation
 
-    This is a placeholder that simulates classification processing.
-    Your actual function should:
-    1. Load data from source_path (.csv, .xlsx, or folder)
-    2. Apply filters if use_filter is True
-    3. Run classification (SR, QF, or both)
-    4. Save results to out_path
-    5. Return a dictionary with results
+    IMPORTANT: Your function must return file_stats with pre-filter statistics!
 
     Args:
         source_path: Path to source file/folder containing emails
@@ -35,34 +30,132 @@ def run_classifier(
 
     Returns:
         dict with keys:
-            - total_emails: int
-            - processed_emails: int
-            - sr_positive: int (if mode is 'sr' or 'both')
-            - sr_negative: int (if mode is 'sr' or 'both')
-            - category_breakdown: dict (if mode is 'qf' or 'both')
+            - total_emails: int (total ORIGINAL emails across all files)
+            - processed_emails: int (total FILTERED emails across all files)
+            - sr_positive: int (optional, aggregated)
+            - sr_negative: int (optional, aggregated)
+            - file_stats: list[dict] (REQUIRED for per-file original stats)
+                Each dict must have:
+                    - source_file: str (e.g., 'desk_A.csv')
+                    - original_total: int (emails before filtering)
+                    - original_sr_count: int (SR creations before filtering)
+                    - original_archive_count: int (archives before filtering)
+                    - filtered_total: int (emails after filtering)
+
+    Example Implementation:
+
+    from pathlib import Path
+    import pandas as pd
+
+    def run_classifier(source_path, out_path, mode='both', use_filter=True,
+                       async_mode=True, max_concurrency=20):
+        source = Path(source_path)
+        out_dir = Path(out_path)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Get files to process
+        if source.is_file():
+            files = [source]
+        else:
+            files = list(source.glob("*.csv")) + list(source.glob("*.xlsx"))
+
+        file_stats = []
+        total_original = 0
+        total_filtered = 0
+        total_sr = 0
+        total_archive = 0
+
+        for file in files:
+            # 1. Load ORIGINAL file
+            if file.suffix == '.csv':
+                df_original = pd.read_csv(file)
+            else:
+                df_original = pd.read_excel(file)
+
+            # 2. Calculate PRE-FILTER stats
+            original_total = len(df_original)
+            original_sr = (df_original['sr_id'].notna() & (df_original['sr_id'] != 0)).sum()
+            original_archive = original_total - original_sr
+
+            # 3. Apply YOUR filters
+            if use_filter:
+                # Example filters (replace with yours):
+                df_filtered = df_original[
+                    ~df_original['sender_email'].isin(your_blocked_senders)
+                ].drop_duplicates(subset=['sr_id'], keep='first')
+            else:
+                df_filtered = df_original
+
+            # 4. Run YOUR classifier on filtered data
+            df_filtered['predicted_opening'] = your_sr_classifier(df_filtered, mode, async_mode, max_concurrency)
+
+            if mode in ['qf', 'both']:
+                # Only predict quickfill for SR predictions
+                sr_mask = df_filtered['predicted_opening'] == 'SR'
+                df_filtered.loc[sr_mask, 'predicted_quickfill'] = your_qf_classifier(
+                    df_filtered[sr_mask], async_mode, max_concurrency
+                )
+
+            # 5. Save to out_path with _result suffix
+            output_file = out_dir / f"{file.stem}_result{file.suffix}"
+            if file.suffix == '.csv':
+                df_filtered.to_csv(output_file, index=False)
+            else:
+                df_filtered.to_excel(output_file, index=False)
+
+            # 6. Track stats
+            filtered_total = len(df_filtered)
+
+            file_stats.append({
+                'source_file': file.name,
+                'original_total': int(original_total),
+                'original_sr_count': int(original_sr),
+                'original_archive_count': int(original_archive),
+                'filtered_total': int(filtered_total),
+            })
+
+            total_original += original_total
+            total_filtered += filtered_total
+            if mode in ['sr', 'both']:
+                total_sr += (df_filtered['predicted_opening'] == 'SR').sum()
+                total_archive += (df_filtered['predicted_opening'] == 'Archive').sum()
+
+        # 7. Return with file_stats
+        return {
+            'total_emails': int(total_original),
+            'processed_emails': int(total_filtered),
+            'sr_positive': int(total_sr) if mode in ['sr', 'both'] else None,
+            'sr_negative': int(total_archive) if mode in ['sr', 'both'] else None,
+            'file_stats': file_stats,  # REQUIRED!
+        }
     """
 
-    # TODO: Remove this simulation code and add your actual implementation
-    # Simulate processing time
+    # TODO: Remove this simulation code and replace with your implementation
+    # This is just a placeholder
     time.sleep(2)
 
-    # Mock results
-    results = {
-        'total_emails': 100,
-        'processed_emails': 100,
-    }
-
-    if mode in ['sr', 'both']:
-        results['sr_positive'] = 35
-        results['sr_negative'] = 65
-
-    if mode in ['qf', 'both']:
-        results['category_breakdown'] = {
-            'Technical Support': 25,
-            'Billing Inquiry': 18,
-            'Feature Request': 12,
-            'Bug Report': 15,
-            'General Question': 30,
+    # Simulate multiple files
+    file_stats = [
+        {
+            'source_file': 'desk_A.csv',
+            'original_total': 1000,
+            'original_sr_count': 200,
+            'original_archive_count': 800,
+            'filtered_total': 400,
+        },
+        {
+            'source_file': 'desk_B.csv',
+            'original_total': 1500,
+            'original_sr_count': 300,
+            'original_archive_count': 1200,
+            'filtered_total': 600,
         }
+    ]
 
-    return results
+    return {
+        'total_emails': 2500,  # Original total
+        'processed_emails': 1000,  # After filtering
+        'sr_positive': 350,
+        'sr_negative': 650,
+        'file_stats': file_stats,  # REQUIRED!
+    }

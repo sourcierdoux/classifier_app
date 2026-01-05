@@ -21,10 +21,24 @@ class ResultsAnalyzer:
         self.review_label = config.analysis["sr_labels"]["review"]
         self.special_qfs = config.analysis["special_quickfills"]
 
-    def analyze_test_results(self, out_path: str) -> List[Dict]:
+    def analyze_test_results(self, out_path: str, file_stats: Optional[List[Dict]] = None) -> List[Dict]:
         """
         Analyze all result files in the output path.
-        Returns a list of per-file analyses.
+        Merges with pre-filter stats if provided.
+
+        Args:
+            out_path: Path to result files
+            file_stats: Optional list of pre-filter stats from run_classifier
+                Each dict should have: {
+                    'source_file': 'filename.csv',
+                    'original_total': 1000,
+                    'original_sr_count': 200,
+                    'original_archive_count': 800,
+                    'filtered_total': 400
+                }
+
+        Returns:
+            List of per-file analyses with both original and filtered stats
         """
         out_dir = Path(out_path)
 
@@ -41,11 +55,35 @@ class ResultsAnalyzer:
         if not result_files:
             raise ValueError(f"No result files found in {out_path}")
 
+        # Create lookup for pre-filter stats by source filename
+        prefilter_lookup = {}
+        if file_stats:
+            for stat in file_stats:
+                source_name = stat.get('source_file', '')
+                # Map source file to result file (e.g., desk_A.csv -> desk_A_result.csv)
+                prefilter_lookup[source_name] = stat
+
         # Analyze each file
         analyses = []
         for file_path in result_files:
             try:
                 analysis = self.analyze_single_file(file_path)
+
+                # Try to match with pre-filter stats
+                # Result file: desk_A_result.csv -> source: desk_A.csv
+                result_name = file_path.name
+                source_name = result_name.replace('_result', '')
+
+                if source_name in prefilter_lookup:
+                    # Merge pre-filter stats
+                    prefilter = prefilter_lookup[source_name]
+                    analysis['original_stats'] = {
+                        'total_emails': prefilter.get('original_total'),
+                        'sr_count': prefilter.get('original_sr_count'),
+                        'archive_count': prefilter.get('original_archive_count'),
+                    }
+                    analysis['filtered_total'] = prefilter.get('filtered_total')
+
                 analyses.append(analysis)
             except Exception as e:
                 # Include failed analysis with error message
@@ -58,7 +96,7 @@ class ResultsAnalyzer:
         return analyses
 
     def analyze_single_file(self, file_path: Path) -> Dict:
-        """Analyze a single result file"""
+        """Analyze a single result file (after filtering)"""
         # Load data
         if file_path.suffix == '.csv':
             df = pd.read_csv(file_path)
@@ -67,14 +105,14 @@ class ResultsAnalyzer:
         else:
             raise ValueError(f"Unsupported file type: {file_path.suffix}")
 
-        # Basic file stats
+        # Basic file stats (AFTER FILTERING)
         total_emails = len(df)
 
-        # Determine ground truth SR creation/archive
+        # Determine ground truth SR creation/archive (from filtered data)
         gt_sr_creation = df[self.sr_id_col].notna() & (df[self.sr_id_col] != 0)
         gt_sr_archive = ~gt_sr_creation
 
-        # Count ground truth
+        # Count ground truth (in filtered data)
         gt_sr_creation_count = gt_sr_creation.sum()
         gt_sr_archive_count = gt_sr_archive.sum()
 
